@@ -1,0 +1,15 @@
+{% for client_ssl_profile in include_static_variables.client_ssl_profiles %}
+{% set dormant_flag=namespace(value="true") %}
+{% if client_ssl_profile.name is defined %}
+{% for app in include_master_variables.apps %}
+{% if client_ssl_profile.name is eq(app.client_ssl) %}
+{% set dormant_flag.value="false" %}
+{% endif %}
+{% endfor %}
+{% if dormant_flag.value is eq("true") %}
+{% if client_ssl_profile.name is not in(["/Common/clientssl","/Common/clientssl-insecure-compatible","/Common/clientssl-quic","/Common/clientssl-secure","/Common/crypto-server-default-clientssl","/Common/splitsession-default-clientssl","/Common/wom-default-clientssl"]) %}
+{{inventory_hostname}};{{client_ssl_profile.name}}
+{% endif %}
+{% endif %}
+{% endif %}
+{% endfor %}

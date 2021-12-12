@@ -1,0 +1,183 @@
+
+- name: prepare directory to store log files
+  hosts: all
+  strategy: linear
+  
+  tasks:
+    - name: prepare directory to store log files
+      file:
+        path: "{{item}}"
+        state: directory
+      with_items:
+        - files/vars
+        - files/reports/{{inventory_hostname}}
+      when: not (item is exists)
+      delegate_to: localhost
+      tags:
+        - always
+        
+- name: collect magic variables for bigip devices
+  hosts: all
+  strategy: linear
+  
+  tasks:
+    - name: collect magic variables for bigip devices
+      bigip_device_info:
+        provider: "{{provider}}"
+        gather_subset:
+          - virtual-servers
+          - client-ssl-profiles
+          - ssl-certs
+          - ltm-pools
+      register: collect_magic_variables
+      delegate_to: localhost
+      tags:
+        - collect_magic_variables
+        
+    - name: copy magic variables into log files
+      template:
+        src: templates/vars/collect_magic_variables.j2
+        dest: files/vars/{{inventory_hostname}}.mvars
+      delegate_to: localhost
+      tags:
+        - collect_magic_variables
+
+- name: collect static variables for bigip devices
+  hosts: all
+  strategy: linear
+
+  tasks:
+    - name: collect static variables for bigip devices
+      bigip_command:
+        provider: "{{provider}}"
+        chdir: /
+        commands: list ltm profile client-ssl recursive
+      register: collect_static_variables
+      delegate_to: localhost
+      tags:
+        - collect_static_variables
+        
+    - name: copy static variables into log files
+      template:
+        src: templates/vars/collect_static_variables.j2
+        dest: files/vars/{{inventory_hostname}}.svars
+      delegate_to: localhost
+      tags:
+        - collect_static_variables
+
+- name: collect master variables for bigip devices
+  hosts: all
+  strategy: linear
+
+  tasks:
+    - name: include magic variables into play
+      include_vars:
+        file: files/vars/{{inventory_hostname}}.mvars
+        name: include_magic_variables
+      delegate_to: localhost
+      tags:
+        - collect_master_variables
+        
+    - name: include static variables into play
+      include_vars:
+        file: files/vars/{{inventory_hostname}}.svars
+        name: include_static_variables
+      delegate_to: localhost
+      tags:
+        - collect_master_variables
+        
+    - name: copy master variables into log files
+      template:
+        src: templates/vars/collect_master_variables.j2
+        dest: files/vars/{{inventory_hostname}}.vars
+      delegate_to: localhost
+      tags:
+        - collect_master_variables
+
+- name: prepare dormant reports for bigip devices
+  hosts: all
+  strategy: linear
+  
+  tasks:
+    - name: include magic variables into play
+      include_vars:
+        file: files/vars/{{inventory_hostname}}.mvars
+        name: include_magic_variables
+      delegate_to: localhost
+      tags:
+        - prepare_dormant_reports
+        
+    - name: include static variables into play
+      include_vars:
+        file: files/vars/{{inventory_hostname}}.svars
+        name: include_static_variables
+      delegate_to: localhost
+      tags:
+        - prepare_dormant_reports
+
+    - name: include master variables into play
+      include_vars: 
+        file: files/vars/{{inventory_hostname}}.vars
+        name: include_master_variables
+      delegate_to: localhost
+      tags:
+        - prepare_dormant_reports
+        
+    - name: prepare client-ssl reports for bigip devices
+      template:
+        src: templates/reports/prepare_ssl_reports.j2
+        dest: files/reports/{{inventory_hostname}}/{{inventory_hostname}}_ClientSSL.csv
+      delegate_to: localhost
+      tags:
+        - prepare_dormant_reports
+        
+    - name: prepare cert reports for bigip devices
+      template:
+        src: templates/reports/prepare_cert_reports.j2
+        dest: files/reports/{{inventory_hostname}}/{{inventory_hostname}}_Cert.csv
+      delegate_to: localhost
+      tags:
+        - prepare_dormant_reports
+
+    - name: prepare pool reports for bigip devices
+      template:
+        src: templates/reports/prepare_pool_reports.j2
+        dest: files/reports/{{inventory_hostname}}/{{inventory_hostname}}_Pool.csv
+      delegate_to: localhost
+      tags:
+        - prepare_dormant_reports
+
+- name: consolidate dormant reports for bigip devices
+  hosts: localhost
+  strategy: linear
+  
+  tasks:
+    - name: consolidate client-ssl reports for bigip devices
+      shell: "{{item}}"
+      with_items:
+        - echo "LB;Client SSL" > files/reports/{{"%Y%m%d" | strftime}}_ClientSSL.csv
+        - cat files/reports/*/*_ClientSSL.csv >> files/reports/{{"%Y%m%d" | strftime}}_ClientSSL.csv
+      run_once: yes
+      delegate_to: localhost
+      tags:
+        - consolidate_dormant_reports
+
+    - name: consolidate cert reports for bigip devices
+      shell: "{{item}}"
+      with_items:
+        - echo "LB;SSL Certificate" > files/reports/{{"%Y%m%d" | strftime}}_Cert.csv
+        - cat files/reports/*/*_Cert.csv >> files/reports/{{"%Y%m%d" | strftime}}_Cert.csv
+      run_once: yes
+      delegate_to: localhost
+      tags:
+        - consolidate_dormant_reports
+        
+    - name: consolidate pool reports for bigip devices
+      shell: "{{item}}"
+      with_items:
+        - echo "LB;Pool" > files/reports/{{"%Y%m%d" | strftime}}_Pool.csv
+        - cat files/reports/*/*_Pool.csv >> files/reports/{{"%Y%m%d" | strftime}}_Pool.csv
+      run_once: yes
+      delegate_to: localhost
+      tags:
+        - consolidate_dormant_reports

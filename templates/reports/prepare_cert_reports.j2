@@ -1,0 +1,15 @@
+{% for ssl_cert in include_magic_variables.ssl_certs %}
+{% set dormant_flag=namespace(value="true") %}
+{% if ssl_cert.full_path is defined %}
+{% for app in include_master_variables.apps %}
+{% if ssl_cert.full_path is eq(app.cert) or ssl_cert.full_path is eq(app.chain) %}
+{% set dormant_flag.value="false" %}
+{% endif %}
+{% endfor %}
+{% if dormant_flag.value is eq("true") %}
+{% if ssl_cert.full_path is not in(["/Common/ca-bundle.crt","/Common/default.crt","/Common/f5-ca-bundle.crt","/Common/f5-irule.crt","/Common/f5_api_com.crt"]) %}
+{{inventory_hostname}};{{ssl_cert.full_path}}
+{% endif %}
+{% endif %}
+{% endif %}
+{% endfor %}

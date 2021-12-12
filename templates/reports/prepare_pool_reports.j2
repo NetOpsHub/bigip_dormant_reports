@@ -1,0 +1,13 @@
+{% for ltm_pool in include_magic_variables.ltm_pools %}
+{% set dormant_flag=namespace(value="true") %}
+{% if ltm_pool.full_path is defined %}
+{% for app in include_master_variables.apps %}
+{% if ltm_pool.full_path is eq(app.default_pool) %}
+{% set dormant_flag.value="false" %}
+{% endif %}
+{% endfor %}
+{% if dormant_flag.value is eq("true") %}
+{{inventory_hostname}};{{ltm_pool.full_path}}
+{% endif %}
+{% endif %}
+{% endfor %}
